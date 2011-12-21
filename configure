@@ -1,26 +1,102 @@
 #!/bin/bash
 
+function find_in_list_to_variable {
+    # find_in_list_to_variable() will find all elements in the array name stored in $1
+    # if found, set the found path to variable name in $2 and return 0
+    # otherwise return 1.
+    
+    eval "L=(\${"${1}"[@]})"
+    for path in ${L[@]}; do
+	if [ -x "$path" ]; then
+	    eval $2=\"$path\"
+	    return 0
+	fi
+    done
+    return 1
+}
+
+function commence_cmdline_option {
+    if [ "$2" = "Y" -o "$2" = "N" ]; then
+	for i in $(seq 0 4 $((${#avail_opts_bool[@]}-1))); do
+    	    if [ "${avail_opts_bool[i]}" = "$1" ]; then
+		eval "${avail_opts_bool[i+2]}=$2"
+		return 0
+    	    fi
+	done
+    else
+	for i in $(seq 0 4 $((${#avail_opts_witharg[@]}-1))); do
+    	    if [ "${avail_opts_witharg[i]}" = "$1" ]; then
+		eval "${avail_opts_witharg[i+2]}=$2"
+		return 0
+    	    fi
+	done	
+    fi
+    
+    echo "unknown option: $1"
+    exit 1
+}
+
+function fill_option_default_value {
+    for i in $(seq 0 4 $((${#avail_opts_bool[@]}-1))); do
+	eval "${avail_opts_bool[i+2]}=${avail_opts_bool[i+3]}"
+    done
+    for i in $(seq 0 4 $((${#avail_opts_witharg[@]}-1))); do
+	eval "${avail_opts_witharg[i+2]}=${avail_opts_witharg[i+3]}"
+    done	
+}
+
+function show_help {
+    echo "** valid options:"
+    echo "  enable-disable options:"
+    echo -e "    --enable-FEATURE\tinclude FEATURE"
+    echo -e "    --disable-FEATURE\tdo not include FEATURE"
+    echo
+    for i in $(seq 0 4 $((${#avail_opts_bool[@]}-1))); do
+	default="${avail_opts_bool[i+3]}"
+	if [ $default = "Y" ]; then
+	    echo -e "    --disable-${avail_opts_bool[i]}\t${avail_opts_bool[i+1]}"
+	else
+	    echo -e "    --enable-${avail_opts_bool[i]}\t${avail_opts_bool[i+1]}"
+	fi
+    done
+    echo
+    echo "  with-argument options:"
+    for i in $(seq 0 4 $((${#avail_opts_witharg[@]}-1))); do
+	default="${avail_opts_witharg[i+3]}"
+	echo -e "    --${avail_opts_witharg[i]}\t${avail_opts_witharg[i+1]} [default=$default]"
+    done
+}
+
+# Qt3 immodule patch is not included in official Qt3 release.
+# Some distros do not apply that patch and will always build failure.
+# We should turn off Qt3 immodule by default.
+
+avail_opts_bool=(
+    # prototype: <CMDLINE OPT> <DESCRIPTION> <VARIABLE> <DEFAULT VALUE>
+    gtk3 "do not compile with GTK+ 3.x (fallback to GTK2 if disabled and available)" with_gtk3 Y
+    xim "disable the support of XIM" use_xim Y
+    tray "disable system tray" use_tray Y
+    i18n "disable i18n" use_i18n Y
+    tsin "disable Tsin input method" use_tsin Y
+    anthy "disable Anthy input method" use_anthy Y
+    chewing "disable Chewing input method" use_chewing Y
+    qt3-immodule "enable Qt 3.x immodule" use_qt3 N
+    qt4-immodule "disable Qt 4.x immodule" use_qt4 Y
+    gtk2-immodule "disable GTK+ 2.x immodule" use_gtk Y
+    gtk3-immodule "disable GTK+ 3.x immodule" use_gtk3 Y
+)
+
+avail_opts_witharg=(
+    # prototype: <CMDLINE OPT> <DESCRIPTION> <VARIABLE> <DEFAULT VALUE>
+    prefix "install prefix (eg. /usr)" prefix "/usr/local"
+    qt3-moc-path "specify the path of \"moc\" tool for Qt3" QT3_MOC_PATH "autodetect"
+    qt4-moc-path "specify the path of \"moc\" tool for Qt4" QT4_MOC_PATH "autodetect"
+)
 
 if [ "$1" = "-h" -o "$1" = "--help" -o "$1" = "-help" ]; then
-    echo "** valid options:"
-    echo "  --with_gtk3     : compile with GTK+ 3.x"
-    echo "  --use_xim=N     : disable the support of XIM"
-    echo "  --prefix=path   : install prefix (e.g. /usr)"
-#   TODO fix those not working options, or just drop them
-#   echo "  --use_tray=N    : disable system tray"
-    echo "  --use_i18n=N    : disable i18n"
-#   echo "  --use_tsin=N    : disable Tsin input method"
-    echo "  --use_anthy=N   : disable Anthy input method"
-    echo "  --use_chewing=N : disable Chewing input method"
-    echo "  --use_qt3=Y     : enable Qt 3.x immodule"
-    echo "  --use_qt4=N     : disable Qt 4.x immodule"
-    echo "  --qt3-moc-path  : specify the path of \"moc\" tool for Qt3."
-    echo "  --qt4-moc-path  : specify the path of \"moc\" tool for Qt4."
-    echo "  --use_gtk=N     : disable GTK+ 2.x immodule"
-    echo "  --use_gtk3=N    : disable GTK+ 3.x immodule"
-    exit
+    show_help
+    exit 0
 fi
-
 
 MAKE=make
 which gmake > /dev/null 2> /dev/null
@@ -48,90 +124,39 @@ if [ $? = 0 ]; then
   SO_FLAGS="-dynamic -bundle -undefined suppress -flat_namespace"
 fi
 
-prefix="/usr/local"
-use_xim='Y'
-use_tray='Y'
-use_i18n='Y'
-use_tsin='Y'
-use_anthy='Y'
-use_chewing='Y'
-# Qt3 immodule patch is not included in official Qt3 release.
-# Some distros do not apply that patch and will always build failure.
-# We should turn off Qt3 immodule by default.
-use_qt3='N'
-use_qt4='Y'
-use_gtk='Y'
-use_gtk3='Y'
-
-function find_in_path_list_to_variable() {
-    # find_in_path_list_to_variable() will find all elements in the array name stored in $1
-    # if found, set the found path to variable name in $2 and return 0
-    # otherwise return 1.
-	 
-	 eval "L=(\${"${1}"[@]})"
-	 for path in ${L[@]}; do
-		  if [ -x "$path" ]; then
-				eval $2=\"$path\"
-				return 0
-		  fi
-	 done
-	 return 1
-}
-
 qt4_moc_path_list=(
-	 "/usr/share/qt4/bin/moc"	#debian (Thanks to medicalwei)
-	 "/usr/lib/qt4/bin/moc"	# fedora (Thanks to petercommand)
-	 "/usr/bin/moc-qt4"	# fedora (Thanks to petercommand)
-	 "/usr/local/bin/moc"	# slackware	# always keep generic name with lower priority
-	 "/usr/bin/moc"			# arch	# always keep generic name with lower priority
+    "/usr/share/qt4/bin/moc"    # debian (Thanks to medicalwei)
+    "/usr/lib/qt4/bin/moc"      # fedora (Thanks to petercommand)
+    "/usr/bin/moc-qt4"          # fedora (Thanks to petercommand)
+    "/usr/local/bin/moc"        # slackware  # always keep generic name with lower priority
+    "/usr/bin/moc"              # arch       # always keep generic name with lower priority
 )
 
 qt3_moc_path_list=(
-	 "/usr/share/qt3/bin/moc"	#debian
-	 "/opt/qt/bin/moc"			# always keep generic name with lower priority
+    "/usr/share/qt3/bin/moc"    # debian
+    "/opt/qt/bin/moc"           # generic path
 )
 
 if [ "$HIME_USE_XIM" ]; then
   use_xim=$HIME_USE_XIM
 fi
 
+fill_option_default_value
+
 for opt do
-  case "$opt" in
-  --with_gtk3) GTK=gtk+-3.0
-  ;;
-  --prefix=*) prefix=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_xim=*) use_xim=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_tray=*) use_tray=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_i18n=*) use_i18n=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_tsin=*) use_tsin=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_anthy=*) use_anthy=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_chewing=*) use_chewing=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_qt3=*) use_qt3=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_qt4=*) use_qt4=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_gtk=*) use_gtk=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --use_gtk3=*) use_gtk3=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --qt3-moc-path=*) QT3_MOC_PATH=`echo $opt | cut -d '=' -f 2`
-  ;;
-  --qt4-moc-path=*) QT4_MOC_PATH=`echo $opt | cut -d '=' -f 2`
-  ;;
-  esac
+case "$opt" in
+    --*=*) v="${opt:2}"; commence_cmdline_option "$(echo "$v" |cut -d '=' -f 1)" "$(echo "$v" |cut -d '=' -f 2)";;
+    --enable-*) commence_cmdline_option "${opt#--enable-}" "Y";;
+    --disable-*) commence_cmdline_option "${opt#--disable-}" "N";;
+esac
 done
 
 echo "prefix: $prefix"
 
-if [ -z "$GTK" ]; then
-  GTK=gtk+-2.0
+if [ "$with_gtk3" = "Y" ]; then
+    GTK=gtk+-3.0
+else
+    GTK=gtk+-2.0
 fi
 
 echo -n ".... Testing $GTK : "
@@ -231,7 +256,7 @@ if [ $? = 0 ]; then
 fi
 
 if [ ! -x "$QT3_MOC_PATH" ]; then
-	 find_in_path_list_to_variable "qt3_moc_path_list" "QT3_MOC_PATH"
+	 find_in_list_to_variable "qt3_moc_path_list" "QT3_MOC_PATH"
 fi
 
 if [ $QT_IM = "Y" ]; then
@@ -261,7 +286,7 @@ if [ $? = 0 ]; then
 fi
 
 if [ ! -x "${QT4_MOC_PATH}" ]; then
-	 find_in_path_list_to_variable "qt4_moc_path_list" "QT4_MOC_PATH"
+	 find_in_list_to_variable "qt4_moc_path_list" "QT4_MOC_PATH"
 fi
 
 if [ $QT4_IM = "Y" ]; then
