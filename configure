@@ -1,5 +1,7 @@
 #!/bin/bash
 
+OPTARRAY_LEN=4
+
 function find_in_list_to_variable {
     # find_in_list_to_variable() will find all elements in the array name stored in $1
     # if found, set the found path to variable name in $2 and return 0
@@ -7,29 +9,29 @@ function find_in_list_to_variable {
     
     eval "L=(\${"${1}"[@]})"
     for path in ${L[@]}; do
-	if [ -x "$path" ]; then
-	    eval $2=\"$path\"
-	    return 0
-	fi
+        if [ -x "$path" ]; then
+            eval $2=\"$path\"
+            return 0
+        fi
     done
     return 1
 }
 
 function commence_cmdline_option {
     if [ "$2" = "Y" -o "$2" = "N" ]; then
-	for i in $(seq 0 4 $((${#avail_opts_bool[@]}-1))); do
-    	    if [ "${avail_opts_bool[i]}" = "$1" ]; then
-		eval "${avail_opts_bool[i+2]}=$2"
-		return 0
-    	    fi
-	done
+        for i in $(seq 0 $OPTARRAY_LEN $((${#avail_opts_bool[@]}-1))); do
+            if [ "${avail_opts_bool[i]}" = "$1" ]; then
+                eval "${avail_opts_bool[i+2]}=$2"
+                return 0
+            fi
+        done
     else
-	for i in $(seq 0 4 $((${#avail_opts_witharg[@]}-1))); do
-    	    if [ "${avail_opts_witharg[i]}" = "$1" ]; then
-		eval "${avail_opts_witharg[i+2]}=$2"
-		return 0
-    	    fi
-	done	
+        for i in $(seq 0 $OPTARRAY_LEN $((${#avail_opts_witharg[@]}-1))); do
+            if [ "${avail_opts_witharg[i]}" = "$1" ]; then
+                eval "${avail_opts_witharg[i+2]}=$2"
+                return 0
+            fi
+        done        
     fi
     
     echo "unknown option: $1"
@@ -37,12 +39,12 @@ function commence_cmdline_option {
 }
 
 function fill_option_default_value {
-    for i in $(seq 0 4 $((${#avail_opts_bool[@]}-1))); do
-	eval "${avail_opts_bool[i+2]}=${avail_opts_bool[i+3]}"
+    for i in $(seq 0 $OPTARRAY_LEN $((${#avail_opts_bool[@]}-1))); do
+        eval "${avail_opts_bool[i+2]}=${avail_opts_bool[i+3]}"
     done
-    for i in $(seq 0 4 $((${#avail_opts_witharg[@]}-1))); do
-	eval "${avail_opts_witharg[i+2]}=${avail_opts_witharg[i+3]}"
-    done	
+    for i in $(seq 0 $OPTARRAY_LEN $((${#avail_opts_witharg[@]}-1))); do
+        eval "${avail_opts_witharg[i+2]}=${avail_opts_witharg[i+3]}"
+    done        
 }
 
 function show_help {
@@ -51,19 +53,19 @@ function show_help {
     echo -e "    --enable-FEATURE\tinclude FEATURE"
     echo -e "    --disable-FEATURE\tdo not include FEATURE"
     echo
-    for i in $(seq 0 4 $((${#avail_opts_bool[@]}-1))); do
-	default="${avail_opts_bool[i+3]}"
-	if [ $default = "Y" ]; then
-	    echo -e "    --disable-${avail_opts_bool[i]}\t${avail_opts_bool[i+1]}"
-	else
-	    echo -e "    --enable-${avail_opts_bool[i]}\t${avail_opts_bool[i+1]}"
-	fi
+    for i in $(seq 0 $OPTARRAY_LEN $((${#avail_opts_bool[@]}-1))); do
+        default="${avail_opts_bool[i+3]}"
+        if [ $default = "Y" ]; then
+            echo -e "    --disable-${avail_opts_bool[i]}\t${avail_opts_bool[i+1]}"
+        else
+            echo -e "    --enable-${avail_opts_bool[i]}\t${avail_opts_bool[i+1]}"
+        fi
     done
     echo
     echo "  with-argument options:"
-    for i in $(seq 0 4 $((${#avail_opts_witharg[@]}-1))); do
-	default="${avail_opts_witharg[i+3]}"
-	echo -e "    --${avail_opts_witharg[i]}\t${avail_opts_witharg[i+1]} [default=$default]"
+    for i in $(seq 0 $OPTARRAY_LEN $((${#avail_opts_witharg[@]}-1))); do
+        default="${avail_opts_witharg[i+3]}"
+        echo -e "    --${avail_opts_witharg[i]}\t${avail_opts_witharg[i+1]} [default=$default]"
     done
 }
 
